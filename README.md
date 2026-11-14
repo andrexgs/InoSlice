@@ -1,10 +1,12 @@
-# 🌾 CropHarvester Studio
+<p align="center"><img src="assets/logo.png" alt="InoSlice" width="160"></p>
+
+# InoSlice
 
 **Extração automatizada, higienização geométrica e rastreabilidade de recortes (crops) a partir de anotações ou predições de detecção de objetos — para construir datasets de Classificação de Imagens sem *data leakage*.**
 
 Converte anotações **YOLO (`.txt`)** e **COCO (`.json`)** em uma árvore `ImageFolder` pronta para PyTorch/timm (ResNet, EfficientNet, SwinV2, MaxViT…), acompanhada de um **manifesto CSV** que liga cada recorte à sua imagem de origem e de um **resumo estatístico JSON** da execução.
 
-![CropHarvester Studio](docs/screenshot.png)
+![InoSlice](docs/screenshot.png)
 
 ---
 
@@ -28,7 +30,7 @@ Converte anotações **YOLO (`.txt`)** e **COCO (`.json`)** em uma árvore `Imag
 ### 1.1 *Data leakage* em datasets derivados de detecção
 Uma única imagem de campo pode conter dezenas de objetos (insetos numa armadilha, animais numa armadilha fotográfica, frutos numa árvore). Recortes da **mesma** imagem compartilham iluminação, sensor, fundo, compressão e, muitas vezes, o mesmo indivíduo fotografado de ângulos quase idênticos. Se esses recortes forem distribuídos aleatoriamente entre treino e teste, o modelo é avaliado sobre amostras praticamente vistas no treino — a acurácia reportada fica **otimisticamente enviesada** e não generaliza.
 
-O CropHarvester Studio registra, para cada recorte, a imagem de origem (`group_id`). Com isso, a divisão pode ser feita com `GroupKFold` / `StratifiedGroupKFold`, garantindo que **todos os recortes de uma mesma imagem fiquem do mesmo lado** da divisão.
+O InoSlice registra, para cada recorte, a imagem de origem (`group_id`). Com isso, a divisão pode ser feita com `GroupKFold` / `StratifiedGroupKFold`, garantindo que **todos os recortes de uma mesma imagem fiquem do mesmo lado** da divisão.
 
 ### 1.2 Preservação morfológica (*aspect ratio*)
 Redes de classificação recebem entradas quadradas (224×224, 384×384…). Redimensionar um recorte retangular diretamente para um quadrado **distorce** a morfologia do objeto (um besouro alongado vira um besouro "gordo"), destruindo exatamente as proporções que muitas vezes discriminam espécies. O modo **letterbox** escala o recorte uniformemente e preenche as bordas com cor sólida — **cinza neutro RGB(114,114,114)**, o mesmo padrão do ecossistema YOLO, ou preto — preservando a forma real do objeto.
@@ -200,6 +202,7 @@ Ex.: caixa 100×50 com $p = 10\%$ → 120×60. Em seguida, `floor` nos mínimos 
 │   └── utils/
 │       └── logger.py          # Logging com callbacks para a GUI e validacoes de entrada
 ├── tests/                     # pytest: geometria, letterbox, parsers e exportacao ponta a ponta
+├── assets/                    # logo.png (janela/README) e icon.ico (executavel)
 ├── docs/screenshot.png
 ├── main.py                    # Ponto de entrada (GUI ou CLI)
 ├── build_exe.py               # Empacotamento PyInstaller
@@ -238,11 +241,11 @@ Em uma máquina **Windows** (o PyInstaller não faz compilação cruzada), com o
 python build_exe.py
 ```
 
-Resultado: `dist\CropHarvesterStudio.exe` — arquivo único, sem janela de console (`--onefile --windowed`). Opções:
+Resultado: `dist\InoSlice.exe` — arquivo único, sem janela de console (`--onefile --windowed`). Opções:
 
 | Opção | Efeito |
 |---|---|
-| `--onedir` | Gera uma pasta `dist\CropHarvesterStudio\` (inicialização mais rápida) |
+| `--onedir` | Gera uma pasta `dist\InoSlice\` (inicialização mais rápida) |
 | `--console` | Mantém o console visível (útil para depuração) |
 | `--no-clean` | Reaproveita o cache de build |
 

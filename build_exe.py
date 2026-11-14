@@ -1,6 +1,6 @@
-"""Gera o executavel standalone do CropHarvester Studio com PyInstaller.
+"""Gera o executavel standalone do InoSlice com PyInstaller.
 
-Uso (no Windows, para obter ``dist/CropHarvesterStudio.exe``)::
+Uso (no Windows, para obter ``dist/InoSlice.exe``)::
 
     python build_exe.py            # arquivo unico (--onefile), sem console
     python build_exe.py --onedir   # pasta com dependencias (inicializacao mais rapida)
@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-APP_NAME = "CropHarvesterStudio"
+APP_NAME = "InoSlice"
 ENTRY_POINT = ROOT / "main.py"
 ICON_CANDIDATES = (ROOT / "assets" / "icon.ico", ROOT / "assets" / "icon.icns", ROOT / "assets" / "icon.png")
 
@@ -75,6 +75,7 @@ def build_arguments(onefile: bool, windowed: bool, clean: bool) -> list[str]:
         "--paths", str(ROOT),
         "--hidden-import", "yaml",
         "--hidden-import", "cv2",
+        "--add-data", f"{ROOT / 'assets'}{os.pathsep}assets",  # logo usada na janela
         "--onefile" if onefile else "--onedir",
     ]
     if windowed:
@@ -91,7 +92,7 @@ def build_arguments(onefile: bool, windowed: bool, clean: bool) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     """Valida o ambiente, executa o PyInstaller e informa o caminho do artefato."""
-    parser = argparse.ArgumentParser(description="Empacota o CropHarvester Studio com PyInstaller.")
+    parser = argparse.ArgumentParser(description="Empacota o InoSlice com PyInstaller.")
     parser.add_argument("--onedir", action="store_true", help="Gera uma pasta em vez de arquivo unico.")
     parser.add_argument("--console", action="store_true", help="Mantem a janela de console (depuracao).")
     parser.add_argument("--no-clean", action="store_true", help="Reaproveita o cache de build anterior.")

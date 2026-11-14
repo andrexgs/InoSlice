@@ -1,4 +1,4 @@
-"""Motor geometrico de recorte do CropHarvester Studio.
+"""Motor geometrico de recorte do InoSlice.
 
 Responsabilidades
 -----------------

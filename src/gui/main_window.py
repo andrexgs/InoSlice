@@ -1,4 +1,4 @@
-"""Janela principal do CropHarvester Studio (PySide6, tema escuro).
+"""Janela principal do InoSlice (PySide6, tema escuro).
 
 A extracao em lote e o carregamento das anotacoes rodam em ``QThread`` para
 que a interface permaneca responsiva; o motor interno ainda paraleliza o
@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 import threading
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QSettings, Qt, QThread, QTimer, QUrl, Signal
-from PySide6.QtGui import QCloseEvent, QColor, QDesktopServices, QFont, QPalette, QTextCharFormat
+from PySide6.QtGui import QCloseEvent, QColor, QDesktopServices, QFont, QIcon, QPalette, QPixmap, QTextCharFormat
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -48,6 +49,12 @@ from src.gui.preview_widget import PreviewWidget
 from src.utils.logger import ValidationError, attach_callback, detach_handler, get_logger, validate_directory
 
 log = get_logger()
+
+
+def asset_path(name: str) -> Path:
+    """Caminho de um arquivo em ``assets/`` (funciona no codigo-fonte e no executavel PyInstaller)."""
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
+    return base / "assets" / name
 
 TARGET_SIZES: list[tuple[str, int | None]] = [
     ("Nativo (sem redimensionar)", None),
@@ -183,7 +190,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(f"{__app_name__} v{__version__}")
         self.resize(1360, 860)
-        self.settings = QSettings("CropHarvester", "CropHarvesterStudio")
+        self.settings = QSettings("InoSlice", "InoSlice")
 
         self.dataset: AnnotationDataset | None = None
         self.load_worker: LoadWorker | None = None
@@ -210,16 +217,29 @@ class MainWindow(QMainWindow):
         central.setObjectName("central")
         self.setCentralWidget(central)
 
-        title = QLabel("🌾 CropHarvester Studio")
+        logo = QLabel()
+        logo_pix = QPixmap(str(asset_path("logo.png")))
+        if not logo_pix.isNull():
+            dpr = self.devicePixelRatioF()
+            logo_pix = logo_pix.scaled(
+                int(48 * dpr), int(48 * dpr), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+            )
+            logo_pix.setDevicePixelRatio(dpr)
+            logo.setPixmap(logo_pix)
+        title = QLabel(__app_name__)
         title.setObjectName("title")
         subtitle = QLabel(
             "Deteccao → Classificacao: recortes higienizados, letterbox sem distorcao e manifesto anti-leakage"
         )
         subtitle.setObjectName("subtitle")
-        header = QVBoxLayout()
-        header.setSpacing(0)
-        header.addWidget(title)
-        header.addWidget(subtitle)
+        header_text = QVBoxLayout()
+        header_text.setSpacing(0)
+        header_text.addWidget(title)
+        header_text.addWidget(subtitle)
+        header = QHBoxLayout()
+        header.setSpacing(12)
+        header.addWidget(logo)
+        header.addLayout(header_text, 1)
 
         # ---------------- painel esquerdo (controles) ----------------
         left = QWidget()
@@ -744,11 +764,20 @@ class MainWindow(QMainWindow):
 
 def run_gui(argv: list[str] | None = None) -> int:
     """Cria a ``QApplication``, aplica o tema escuro e exibe a janela principal."""
-    import sys
 
+    if sys.platform == "win32":  # faz a barra de tarefas exibir a logo do app, nao a do Python
+        try:
+            import ctypes
+
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("InoSlice.InoSlice")
+        except (AttributeError, OSError):
+            pass
     app = QApplication.instance() or QApplication(argv if argv is not None else sys.argv)
     app.setApplicationName(__app_name__)
     app.setApplicationVersion(__version__)
+    icon = QIcon(str(asset_path("logo.png")))
+    if not icon.isNull():
+        app.setWindowIcon(icon)
     apply_dark_theme(app)  # type: ignore[arg-type]
     window = MainWindow()
     window.show()

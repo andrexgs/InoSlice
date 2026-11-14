@@ -1,4 +1,4 @@
-"""Ponto de entrada do CropHarvester Studio.
+"""Ponto de entrada do InoSlice.
 
 Sem argumentos, abre a interface grafica. Com ``--images``/``--labels``/``--output``
 executa em modo linha de comando (util para servidores e pipelines)::
@@ -20,7 +20,7 @@ from src import __app_name__, __version__
 def build_parser() -> argparse.ArgumentParser:
     """Cria o parser de argumentos do modo CLI."""
     p = argparse.ArgumentParser(
-        prog="CropHarvesterStudio",
+        prog="InoSlice",
         description=f"{__app_name__} v{__version__} - recortes de deteccao para classificacao sem data leakage.",
     )
     p.add_argument("--images", help="Diretorio das imagens originais.")

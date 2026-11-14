@@ -1,4 +1,4 @@
-"""Sistema de logs e validacoes de entrada do CropHarvester Studio.
+"""Sistema de logs e validacoes de entrada do InoSlice.
 
 O logger padrao escreve no console e, opcionalmente, encaminha cada registro
 para callbacks registrados (por exemplo, o console integrado da GUI).
@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Callable, Iterable
 
-LOGGER_NAME = "crop_harvester"
+LOGGER_NAME = "inoslice"
 _LOG_FORMAT = "%(asctime)s | %(levelname)-7s | %(message)s"
 _DATE_FORMAT = "%H:%M:%S"
 
