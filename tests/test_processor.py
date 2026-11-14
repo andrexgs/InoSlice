@@ -70,7 +70,9 @@ def test_extract_crops_filters_and_geometry() -> None:
         _abs_box(100, 50, 200, 100, cls=2, conf=0.1),  # baixa confianca
         _abs_box(400, 400, 500, 500, cls=3),  # fora da imagem
     ]
-    cfg = ProcessingConfig(padding_pct=10.0, min_width=32, min_height=32, min_confidence=0.25)
+    cfg = ProcessingConfig(
+        padding_pct=10.0, min_width=32, min_height=32, min_confidence=0.25, aspect_mode="rectangular"
+    )
     report = extract_crops(image, boxes, cfg)
 
     assert len(report.crops) == 1
@@ -108,3 +110,84 @@ def test_read_write_roundtrip_unicode_path(tmp_path: Path) -> None:
     loaded = read_image(target)
     assert loaded is not None and loaded.shape == (10, 12, 3)
     assert read_image(tmp_path / "nao_existe.jpg") is None
+
+
+# ------------------------------------------------------------------ letterbox
+from src.core.processor import (  # noqa: E402
+    LETTERBOX_COLORS_RGB,
+    finalize_crop,
+    letterbox,
+    letterbox_geometry,
+    resize_longest_side,
+)
+
+
+def test_letterbox_geometry_native_resolution() -> None:
+    # 100x40 -> quadrado 100x100, conteudo centralizado verticalmente
+    assert letterbox_geometry(100, 40) == (100, 100, 40, 0, 30)
+    assert letterbox_geometry(30, 90) == (90, 30, 90, 30, 0)
+    assert letterbox_geometry(50, 50) == (50, 50, 50, 0, 0)
+
+
+def test_letterbox_geometry_with_target_preserves_aspect_ratio() -> None:
+    side, new_w, new_h, ox, oy = letterbox_geometry(400, 200, 224)
+    assert (side, new_w, new_h) == (224, 224, 112)
+    assert (ox, oy) == (0, 56)
+    side, new_w, new_h, ox, oy = letterbox_geometry(60, 180, 384)  # ampliacao
+    assert (side, new_w, new_h, ox, oy) == (384, 128, 384, 128, 0)
+    assert new_w / new_h == pytest.approx(60 / 180, rel=1e-2)
+
+
+@pytest.mark.parametrize("color", ["gray", "black"])
+def test_letterbox_fills_borders_and_keeps_content(color: str) -> None:
+    crop = np.full((40, 100, 3), 200, dtype=np.uint8)
+    out = letterbox(crop, LETTERBOX_COLORS_RGB[color])
+    assert out.shape == (100, 100, 3)
+    expected = LETTERBOX_COLORS_RGB[color][0]
+    # faixas superior/inferior preenchidas
+    assert np.all(out[:30] == expected)
+    assert np.all(out[70:] == expected)
+    # conteudo intacto (sem reamostragem quando nao ha target)
+    assert np.all(out[30:70] == 200)
+
+
+def test_letterbox_gray_is_rgb_114() -> None:
+    crop = np.zeros((10, 20, 3), dtype=np.uint8)
+    out = letterbox(crop, LETTERBOX_COLORS_RGB["gray"])
+    assert tuple(int(v) for v in out[0, 0]) == (114, 114, 114)
+
+
+def test_letterbox_with_target_size() -> None:
+    crop = np.full((150, 300, 3), 50, dtype=np.uint8)
+    out = letterbox(crop, (0, 0, 0), 224)
+    assert out.shape == (224, 224, 3)
+    assert np.all(out[:56] == 0) and np.all(out[168:] == 0)
+    assert np.all(out[56:168] == 50)
+
+
+def test_resize_longest_side_keeps_ratio() -> None:
+    crop = np.zeros((100, 300, 3), dtype=np.uint8)
+    out = resize_longest_side(crop, 150)
+    assert out.shape[:2] == (50, 150)
+
+
+def test_finalize_crop_modes() -> None:
+    crop = np.zeros((30, 90, 3), dtype=np.uint8)
+    rect = finalize_crop(crop, ProcessingConfig(aspect_mode="rectangular"))
+    assert rect.shape[:2] == (30, 90)
+    rect_resized = finalize_crop(crop, ProcessingConfig(aspect_mode="rectangular", target_size=180))
+    assert rect_resized.shape[:2] == (60, 180)
+    square = finalize_crop(crop, ProcessingConfig(aspect_mode="letterbox", letterbox_color="black"))
+    assert square.shape[:2] == (90, 90)
+    square_t = finalize_crop(crop, ProcessingConfig(aspect_mode="letterbox", target_size=384))
+    assert square_t.shape[:2] == (384, 384)
+
+
+def test_end_to_end_letterbox_with_padding_near_border() -> None:
+    image = np.full((100, 100, 3), 255, dtype=np.uint8)
+    box = _abs_box(0, 40, 80, 60)  # 80x20 colada na borda esquerda
+    cfg = ProcessingConfig(padding_pct=25, min_width=1, min_height=1, aspect_mode="letterbox", target_size=64)
+    crop = extract_crops(image, [box], cfg).crops[0]
+    assert crop.padded_box == (0, 35, 100, 65)  # 20 px em x (clamp 0/100), 5 px em y
+    assert crop.image.shape == (64, 64, 3)
+    assert (crop.output_width, crop.output_height) == (64, 64)

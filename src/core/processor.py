@@ -8,7 +8,12 @@ Responsabilidades
 2. **Margem de contexto (context padding)** - expande a caixa em ``p%`` da sua
    *propria* largura/altura **em cada lado**, com *clamping* seguro nas bordas
    da imagem (``0 <= x <= W_img``, ``0 <= y <= H_img``).
-3. **Leitura/escrita robusta** - usa ``np.fromfile``/``cv2.imdecode`` para
+3. **Preservacao morfologica** - modo ``rectangular`` (mantem a proporcao exata
+   do recorte) ou ``letterbox`` (quadrado ``L x L`` com
+   ``L = max(W_crop, H_crop)``, ou redimensionado a uma resolucao alvo como
+   224/384, preenchendo as bordas com cinza neutro ``RGB(114,114,114)`` ou
+   preto). Nenhum dos modos distorce o objeto.
+4. **Leitura/escrita robusta** - usa ``np.fromfile``/``cv2.imdecode`` para
    suportar caminhos com acentos no Windows.
 
 Convencao geometrica: caixas sao ``(x_min, y_min, x_max, y_max)`` com
@@ -21,6 +26,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 import cv2
 import numpy as np
@@ -29,6 +35,16 @@ from src.core.parsers import AnnotationBox
 
 IntBox = tuple[int, int, int, int]
 FloatBox = tuple[float, float, float, float]
+
+AspectMode = Literal["rectangular", "letterbox"]
+LetterboxColor = Literal["gray", "black"]
+
+#: Cores de preenchimento em RGB (convertidas para BGR ao desenhar com OpenCV).
+LETTERBOX_COLORS_RGB: dict[str, tuple[int, int, int]] = {
+    "gray": (114, 114, 114),
+    "black": (0, 0, 0),
+}
+ASPECT_MODES: tuple[str, ...] = ("rectangular", "letterbox")
 
 
 # --------------------------------------------------------------------------- #
@@ -44,6 +60,12 @@ class ProcessingConfig:
         min_width: largura minima (px) da caixa original para ser aceita.
         min_height: altura minima (px) da caixa original para ser aceita.
         min_confidence: confianca minima (aplicada apenas quando a caixa a possui).
+        aspect_mode: ``"rectangular"`` (proporcao original) ou ``"letterbox"``
+            (quadrado com preenchimento).
+        letterbox_color: ``"gray"`` (RGB 114,114,114) ou ``"black"`` (RGB 0,0,0).
+        target_size: lado alvo opcional (ex.: 224, 384). No modo letterbox gera
+            ``target x target``; no modo retangular redimensiona o maior lado
+            para ``target`` mantendo a proporcao. ``None`` mantem a resolucao nativa.
         jpeg_quality: qualidade JPEG dos recortes salvos (1-100).
     """
 
@@ -51,7 +73,15 @@ class ProcessingConfig:
     min_width: int = 32
     min_height: int = 32
     min_confidence: float = 0.0
+    aspect_mode: AspectMode = "letterbox"
+    letterbox_color: LetterboxColor = "gray"
+    target_size: int | None = None
     jpeg_quality: int = 95
+
+    @property
+    def fill_rgb(self) -> tuple[int, int, int]:
+        """Cor de preenchimento em RGB."""
+        return LETTERBOX_COLORS_RGB[self.letterbox_color]
 
     def validate(self) -> None:
         """Valida os limites dos parametros, levantando ``ValueError`` se invalidos."""
@@ -63,6 +93,12 @@ class ProcessingConfig:
             raise ValueError("min_confidence deve estar entre 0 e 1.")
         if not 1 <= self.jpeg_quality <= 100:
             raise ValueError("jpeg_quality deve estar entre 1 e 100.")
+        if self.aspect_mode not in ASPECT_MODES:
+            raise ValueError(f"aspect_mode invalido: {self.aspect_mode}")
+        if self.letterbox_color not in LETTERBOX_COLORS_RGB:
+            raise ValueError(f"letterbox_color invalido: {self.letterbox_color}")
+        if self.target_size is not None and self.target_size <= 0:
+            raise ValueError("target_size deve ser positivo.")
 
     def to_dict(self) -> dict[str, object]:
         """Representacao serializavel (para o resumo JSON)."""
@@ -71,6 +107,10 @@ class ProcessingConfig:
             "min_width": self.min_width,
             "min_height": self.min_height,
             "min_confidence": self.min_confidence,
+            "aspect_mode": self.aspect_mode,
+            "letterbox_color": self.letterbox_color,
+            "letterbox_rgb": list(self.fill_rgb),
+            "target_size": self.target_size,
             "jpeg_quality": self.jpeg_quality,
         }
 
@@ -171,10 +211,84 @@ def crop_image(image: np.ndarray, box: IntBox) -> np.ndarray:
 
 
 # --------------------------------------------------------------------------- #
+# Preservacao morfologica (resize sem distorcao e letterbox)
+# --------------------------------------------------------------------------- #
+def _interpolation(src_size: int, dst_size: int) -> int:
+    """``INTER_AREA`` para reducao (anti-aliasing) e ``INTER_CUBIC`` para ampliacao."""
+    return cv2.INTER_AREA if dst_size < src_size else cv2.INTER_CUBIC
+
+
+def resize_longest_side(image: np.ndarray, target: int) -> np.ndarray:
+    """Redimensiona mantendo a proporcao, de modo que o maior lado seja ``target``."""
+    h, w = image.shape[:2]
+    longest = max(h, w)
+    if longest == target:
+        return image
+    scale = target / float(longest)
+    new_w = max(1, int(round(w * scale)))
+    new_h = max(1, int(round(h * scale)))
+    return cv2.resize(image, (new_w, new_h), interpolation=_interpolation(longest, target))
+
+
+def letterbox_geometry(width: int, height: int, target_size: int | None = None) -> tuple[int, int, int, int, int]:
+    """Calcula a geometria do letterbox sem tocar em pixels.
+
+    Returns:
+        ``(side, new_w, new_h, offset_x, offset_y)``: lado do quadrado final,
+        dimensoes do conteudo apos o redimensionamento e deslocamento
+        (centralizado) do conteudo dentro do quadrado.
+    """
+    if width <= 0 or height <= 0:
+        raise ValueError("Dimensoes do recorte devem ser positivas.")
+    longest = max(width, height)
+    side = int(target_size) if target_size else longest
+    if side == longest:
+        new_w, new_h = width, height
+    else:
+        scale = side / float(longest)
+        new_w = min(side, max(1, int(round(width * scale))))
+        new_h = min(side, max(1, int(round(height * scale))))
+    offset_x = (side - new_w) // 2
+    offset_y = (side - new_h) // 2
+    return side, new_w, new_h, offset_x, offset_y
+
+
+def letterbox(
+    image: np.ndarray,
+    fill_rgb: tuple[int, int, int] = LETTERBOX_COLORS_RGB["gray"],
+    target_size: int | None = None,
+) -> np.ndarray:
+    """Converte ``image`` (BGR) em um quadrado sem distorcao, centralizando o conteudo.
+
+    O conteudo e redimensionado uniformemente (mesmo fator em x e y) e as faixas
+    restantes sao preenchidas com ``fill_rgb``.
+    """
+    h, w = image.shape[:2]
+    side, new_w, new_h, off_x, off_y = letterbox_geometry(w, h, target_size)
+    if (new_w, new_h) != (w, h):
+        content = cv2.resize(image, (new_w, new_h), interpolation=_interpolation(max(w, h), side))
+    else:
+        content = image
+    channels = image.shape[2] if image.ndim == 3 else 1
+    fill_bgr = (fill_rgb[2], fill_rgb[1], fill_rgb[0])
+    if channels == 1:
+        canvas = np.full((side, side), fill_rgb[0], dtype=image.dtype)
+    else:
+        canvas = np.empty((side, side, channels), dtype=image.dtype)
+        canvas[:] = np.array(fill_bgr[:channels] if channels <= 3 else (*fill_bgr, 255), dtype=image.dtype)
+    canvas[off_y : off_y + new_h, off_x : off_x + new_w] = content
+    return canvas
+
+
+# --------------------------------------------------------------------------- #
 # Pipeline por imagem
 # --------------------------------------------------------------------------- #
 def finalize_crop(crop: np.ndarray, config: ProcessingConfig) -> np.ndarray:
-    """Pos-processamento do recorte (identidade nesta versao)."""
+    """Aplica o modo de proporcao (retangular/letterbox) e o redimensionamento opcional."""
+    if config.aspect_mode == "letterbox":
+        return letterbox(crop, config.fill_rgb, config.target_size)
+    if config.target_size:
+        return resize_longest_side(crop, config.target_size)
     return crop
 
 
