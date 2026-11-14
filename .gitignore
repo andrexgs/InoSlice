@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Ambientes virtuais
+venv/
+.venv/
+env/
+
+# Empacotamento PyInstaller
+build/
+dist/
+*.spec
+
+# Datasets e saidas geradas
+datasets/
+dataset_crops/
+output/
+*.csv
+harvest_summary.json
+
+# IDEs / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

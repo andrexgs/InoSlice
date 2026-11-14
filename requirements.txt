@@ -1,0 +1,9 @@
+# Dependencias de execucao do CropHarvester Studio
+numpy==2.5.3
+opencv-python-headless==5.0.0.93
+PyYAML==6.0.3
+PySide6==6.12.0
+
+# Desenvolvimento, testes e empacotamento
+pytest==9.2.0
+pyinstaller==6.22.3
