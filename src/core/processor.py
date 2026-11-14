@@ -366,3 +366,52 @@ def write_image(path: str | Path, image: np.ndarray, jpeg_quality: int = 95) -> 
     p.parent.mkdir(parents=True, exist_ok=True)
     encoded.tofile(str(p))
     return True
+
+
+# --------------------------------------------------------------------------- #
+# Pre-visualizacao
+# --------------------------------------------------------------------------- #
+@dataclass
+class PreviewResult:
+    """Dados para o painel de pre-visualizacao de uma unica deteccao."""
+
+    overlay: np.ndarray
+    crop: np.ndarray | None
+    orig_box: IntBox
+    padded_box: IntBox
+    accepted: bool
+    reason: str
+
+
+def render_preview(image: np.ndarray, box: AnnotationBox, config: ProcessingConfig) -> PreviewResult:
+    """Desenha caixa original (verde) e caixa com padding (laranja) e gera o recorte final.
+
+    Caixas rejeitadas pelos filtros sao desenhadas em vermelho e ``crop`` fica ``None``.
+    """
+    img_h, img_w = image.shape[:2]
+    abs_box = box.to_absolute(img_w, img_h)
+    orig = clamp_box(abs_box, img_w, img_h)
+    padded = expand_box(abs_box, config.padding_pct, img_w, img_h)
+
+    reason = ""
+    if box.confidence is not None and box.confidence < config.min_confidence:
+        reason = f"confianca {box.confidence:.2f} < {config.min_confidence:.2f}"
+    elif orig[2] - orig[0] <= 0 or orig[3] - orig[1] <= 0:
+        reason = "caixa invalida/fora da imagem"
+    elif not passes_min_size(orig, config.min_width, config.min_height):
+        reason = (
+            f"{orig[2] - orig[0]}x{orig[3] - orig[1]} px menor que "
+            f"{config.min_width}x{config.min_height} px"
+        )
+    accepted = reason == ""
+
+    overlay = image.copy()
+    thickness = max(2, int(round(max(img_w, img_h) / 400)))
+    if accepted:
+        cv2.rectangle(overlay, padded[:2], (padded[2] - 1, padded[3] - 1), (0, 140, 255), thickness)
+        cv2.rectangle(overlay, orig[:2], (orig[2] - 1, orig[3] - 1), (60, 220, 60), thickness)
+        crop = finalize_crop(crop_image(image, padded), config)
+    else:
+        cv2.rectangle(overlay, orig[:2], (max(orig[2] - 1, orig[0]), max(orig[3] - 1, orig[1])), (40, 40, 230), thickness)
+        crop = None
+    return PreviewResult(overlay=overlay, crop=crop, orig_box=orig, padded_box=padded, accepted=accepted, reason=reason)

@@ -191,3 +191,16 @@ def test_end_to_end_letterbox_with_padding_near_border() -> None:
     assert crop.padded_box == (0, 35, 100, 65)  # 20 px em x (clamp 0/100), 5 px em y
     assert crop.image.shape == (64, 64, 3)
     assert (crop.output_width, crop.output_height) == (64, 64)
+
+
+def test_render_preview_accepted_and_rejected() -> None:
+    from src.core.processor import render_preview
+
+    image = np.zeros((100, 100, 3), dtype=np.uint8)
+    cfg = ProcessingConfig(padding_pct=10, min_width=20, min_height=20, aspect_mode="letterbox", target_size=32)
+    ok = render_preview(image, _abs_box(20, 20, 60, 40), cfg)
+    assert ok.accepted and ok.crop is not None and ok.crop.shape == (32, 32, 3)
+    assert ok.padded_box == (16, 18, 64, 42)
+    assert ok.overlay.shape == image.shape and ok.overlay.any()
+    bad = render_preview(image, _abs_box(20, 20, 30, 30), cfg)
+    assert not bad.accepted and bad.crop is None and "menor" in bad.reason
