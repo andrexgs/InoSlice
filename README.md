@@ -97,3 +97,15 @@ assets/      # logo e ícone
 main.py      # ponto de entrada (interface ou linha de comando)
 build_exe.py # empacotamento com PyInstaller
 ```
+
+## Licença
+
+Copyright © 2026 **André Gonçalves da Silva** ([@andrexgs](https://github.com/andrexgs)).
+
+O InoSlice é software livre, distribuído sob a [Apache License 2.0](LICENSE). Você pode usar, modificar e redistribuir o projeto, inclusive em trabalhos comerciais, desde que:
+
+- mantenha o arquivo [LICENSE](LICENSE) e o aviso de copyright;
+- mantenha o arquivo [NOTICE](NOTICE) com o crédito **"Desenvolvido por André Gonçalves da Silva"**;
+- indique as alterações que fizer nos arquivos.
+
+Se usar o InoSlice em um trabalho acadêmico, cite o repositório: <https://github.com/andrexgs/InoSlice>.

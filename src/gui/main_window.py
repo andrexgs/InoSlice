@@ -37,7 +37,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
 )
 
-from src import __app_name__, __version__
+from src import __app_name__, __author__, __url__, __version__
 from src.core.exporter import CropHarvester, HarvestProgress, HarvestResult
 from src.core.parsers import AnnotationDataset, load_annotations
 from src.core.processor import ProcessingConfig
@@ -218,7 +218,12 @@ class MainWindow(QMainWindow):
         self.status_msg = QLabel("Pronto")
         hint = QLabel("Ctrl+Enter extrai  ·  ← → navegam na pre-visualizacao")
         self.statusBar().addWidget(self.status_msg, 1)
+        credit = QLabel(f'Desenvolvido por <a href="{__url__}" style="color:{theme.ORANGE_400};'
+                        f'text-decoration:none">{__author__}</a>')
+        credit.setOpenExternalLinks(True)
+        credit.setToolTip(f"{__app_name__} · Apache License 2.0 · {__url__}")
         self.statusBar().addPermanentWidget(hint)
+        self.statusBar().addPermanentWidget(credit)
         self.statusBar().setSizeGripEnabled(True)
 
     def _build_header(self) -> QFrame:

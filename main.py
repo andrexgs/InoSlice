@@ -14,7 +14,7 @@ import multiprocessing
 import sys
 from pathlib import Path
 
-from src import __app_name__, __version__
+from src import __app_name__, __author__, __version__
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -22,6 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="InoSlice",
         description=f"{__app_name__} v{__version__} - recortes de deteccao para classificacao sem data leakage.",
+        epilog=f"Desenvolvido por {__author__}. Licenca Apache-2.0.",
     )
     p.add_argument("--images", help="Diretorio das imagens originais.")
     p.add_argument("--labels", help="Diretorio de .txt YOLO ou arquivo COCO .json.")

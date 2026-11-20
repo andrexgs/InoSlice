@@ -76,6 +76,8 @@ def build_arguments(onefile: bool, windowed: bool, clean: bool) -> list[str]:
         "--hidden-import", "yaml",
         "--hidden-import", "cv2",
         "--add-data", f"{ROOT / 'assets'}{os.pathsep}assets",  # logo usada na janela
+        "--add-data", f"{ROOT / 'LICENSE'}{os.pathsep}.",  # licenca e atribuicao junto ao executavel
+        "--add-data", f"{ROOT / 'NOTICE'}{os.pathsep}.",
         "--onefile" if onefile else "--onedir",
     ]
     if windowed:
